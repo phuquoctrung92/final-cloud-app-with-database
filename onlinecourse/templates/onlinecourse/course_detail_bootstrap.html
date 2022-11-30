@@ -44,10 +44,20 @@
             <h2>{{ course.name }}</h2>
             <div class="card-columns-vertical">
                 {% for lesson in course.lesson_set.all %}
+                <form id="questionform" action="point to a submit view" method="post">
                     <div class="card mt-1">
                         <div class="card-header"><h5>Lesson {{lesson.order|add:1}}: {{lesson.title}}</h5></div>
+                        {% csrf_token %}
                         <div class="card-body">{{lesson.content}}</div>
+                        {% for question in lesson.question_set.all %}
+                            <div class="card-header">{{question.text}}</div>
+                            {% for choice in question.choice_set.all %}
+                                <div class="card-body"><input type="checkbox" class="form-check-input" /> {{choice.text}}</div>
+                            {% endfor %}
+                        {% endfor %}
                     </div>
+                    <input class="btn btn-success btn-block" type="submit" value="Submit">
+                </form>
                 {% endfor %}
             </div>
             <!-- Task: show questions and choices -->
