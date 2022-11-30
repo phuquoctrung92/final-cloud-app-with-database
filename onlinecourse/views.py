@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from django.http import HttpResponseRedirect
 # <HINT> Import any new Models here
-from .models import Course, Enrollment
+from .models import Course, Enrollment, Submission, Choice
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404, render, redirect
 from django.urls import reverse
@@ -88,7 +88,6 @@ class CourseDetailView(generic.DetailView):
     model = Course
     template_name = 'onlinecourse/course_detail_bootstrap.html'
 
-
 def enroll(request, course_id):
     course = get_object_or_404(Course, pk=course_id)
     user = request.user
@@ -110,19 +109,31 @@ def enroll(request, course_id):
          # Collect the selected choices from exam form
          # Add each selected choice object to the submission object
          # Redirect to show_exam_result with the submission id
-#def submit(request, course_id):
-
-
-# <HINT> A example method to collect the selected choices from the exam form from the request object
-#def extract_answers(request):
-#    submitted_anwsers = []
-#    for key in request.POST:
-#        if key.startswith('choice'):
-#            value = request.POST[key]
-#            choice_id = int(value)
-#            submitted_anwsers.append(choice_id)
-#    return submitted_anwsers
-
+def submit(request, course_id):
+    
+    def extract_answers(request):
+        submitted_anwsers = []
+        for key in request.POST:
+            if key.startswith('choice_'):
+                value = request.POST[key]
+                choice_id = int(value)
+                submitted_anwsers.append(choice_id)
+        return submitted_anwsers
+    
+    if request.method != 'POST' or not request.user.is_authenticated:
+        return redirect('onlinecourse:course_details', course_id=course_id)
+    
+    submitted_answers = extract_answers(request)
+    
+    user = request.user
+    course = get_object_or_404(Course, pk=course_id)
+    enrollment = Enrollment.objects.create(user=user, course=course, mode='honor')
+    
+    submission = Submission.objects.create(enrollment=enrollment)
+    submission.choices.set(Choice.objects.filter(id__in=submitted_answers))
+    submission.save()
+    
+    return redirect('onlinecourse:result', course_id=course.id, submission_id=submission.id)
 
 # <HINT> Create an exam result view to check if learner passed exam and show their question results and result for each question,
 # you may implement it based on the following logic:
@@ -130,7 +141,57 @@ def enroll(request, course_id):
         # Get the selected choice ids from the submission record
         # For each selected choice, check if it is a correct answer or not
         # Calculate the total score
-#def show_exam_result(request, course_id, submission_id):
+def show_exam_result(request, course_id, submission_id):
+    # Get course and submission based on their ids
+    course = get_object_or_404(Course, id=course_id)
+    submission = get_object_or_404(Submission, id=submission_id)
+    
+    if submission.enrollment.course.id != course.id:
+        raise Http404("Submission does not belong to this course")
+    
+    # Get the selected choice ids from the submission record
+    selected_choices_ids = submission.choices.all().values_list('id', flat=True)
+    
+    # For each selected choice, check if it is a correct answer or not
+    questions = []
+    
+    score = 0
+    full_score = 0
+    
+    for question in course.question_set.all():
+        add_score = True
+        full_score += question.grade
+        
+        q_ctx = {'question_text':question.text, 'choices':[]}
+        
+        for choice in question.choice_set.all():
+            if choice.id in selected_choices_ids:
+                if choice.indicate:
+                    q_ctx['choices'].append(f'<p style="color:green">Correct answer: {choice.text}</p>')
+                else:
+                    q_ctx['choices'].append(f'<p style="color:red">Wrong answer: {choice.text}</p>')
+                    add_score = False
+            else:
+                if choice.indicate:
+                    q_ctx['choices'].append(f'<p style="color:orange">Not selected: {choice.text}</p>')
+                    add_score = False
+                else:
+                    q_ctx['choices'].append(f'<p>{choice.text}</p>')
+        
+        questions.append(q_ctx)
+        if add_score:
+            score += question.grade
+    
+    ctx = {
+        'user': submission.enrollment.user,
+        'course': course,
+        'grade': round(score*100/full_score, 2),
+        'questions': questions,
+    }
+    
+    return render(request, 'onlinecourse/exam_result_bootstrap.html', ctx)
+           
+    
 
 
 

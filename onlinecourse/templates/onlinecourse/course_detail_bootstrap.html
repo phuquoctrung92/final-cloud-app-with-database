@@ -44,7 +44,7 @@
             <h2>{{ course.name }}</h2>
             <div class="card-columns-vertical">
                 {% for lesson in course.lesson_set.all %}
-                <form id="questionform" action="point to a submit view" method="post">
+                <form id="questionform" action="{% url 'onlinecourse:submit' course.id %}" method="post">
                     <div class="card mt-1">
                         <div class="card-header"><h5>Lesson {{lesson.order|add:1}}: {{lesson.title}}</h5></div>
                         {% csrf_token %}
@@ -52,7 +52,9 @@
                         {% for question in lesson.question_set.all %}
                             <div class="card-header">{{question.text}}</div>
                             {% for choice in question.choice_set.all %}
-                                <div class="card-body"><input type="checkbox" class="form-check-input" /> {{choice.text}}</div>
+                                <div class="card-body"><input type="checkbox" 
+                                    id="{{choice.id}}" class="form-check-input" 
+                                    name="choice_{{choice.id}}" value="{{choice.id}}"> {{ choice.choice_text }} {{choice.text}}</div>
                             {% endfor %}
                         {% endfor %}
                     </div>
